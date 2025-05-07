@@ -1,7 +1,7 @@
 var fs = require("fs");
 const { promisify } = require("util");
-const unlinkAsync = promisify(fs.unlink);
-const sharp = require("sharp");
+// const unlinkAsync = promisify(fs.unlink);
+// const sharp = require("sharp");
 const { s3Client } = require("../../../../../utils/s3Utils");
 const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const admin = require("../../../../../models/admin_schema");
@@ -139,6 +139,33 @@ exports.editProfileImage = async (req, res) => {
         console.log("[ ERROR ]", err);
         return res.status(500).send({
             message: "Error editing the profile iamge",
+        });
+    }
+};
+
+
+exports.faceDetection = async (req, res) => {
+    console.log(`
+--------------------------------------------------
+  User : ${req.decoded._id}
+  API  : Edit Profile
+  router.post('/profiles', profiles.faceDetection);
+        
+--------------------------------------------------`);
+    const dbModels = global.DB_MODELS;
+    const data = req.body;
+
+
+    try {
+        console.log(data)
+
+        return res.status(200).send({
+            message: "Successfully face Detection",
+        });
+    } catch (err) {
+        console.log("[ ERROR ]", err);
+        return res.status(500).send({
+            message: "Error face Detection",
         });
     }
 };
