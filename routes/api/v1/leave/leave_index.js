@@ -40,7 +40,7 @@ router.post('/request-leave', leaveMngmtCtrl.requestLeave); // 휴가 요청
 router.put('/cancel-my-request-leave', leaveMngmtCtrl.cancelMyRequestLeave); // 신청한 휴가 취소
 router.get('/my-status', leaveMngmtCtrl.getMyLeaveStatus); // 내 휴가 현황(쓴거, 남은거, 토탈)
 router.get('/my-request', leaveMngmtCtrl.getMyRequestList); //// 내가 신청한 내역(3개월내의 approve만)
-router.get('/my-request-search',leaveMngmtCtrl.getMyRequestListSearch); //// 조건 걸고 search
+router.get('/my-request-search', leaveMngmtCtrl.getMyRequestListSearch); //// 조건 걸고 search
 
 router.post('/requestConfirmRd', leaveMngmtCtrl.requestConfirmRd); // Replacement Day Confirming Request
 router.get('/getRdList', leaveMngmtCtrl.getRdList); // Get RD list
@@ -54,12 +54,13 @@ router.get('/getNationList', leaveMngmtCtrl.getNationList); // 휴가 요청 페
 -----------------------------------*/
 router.get('/pending-leave-request', approvalMngmtCtrl.getLeaveRequest); // M 휴가 요청한 리스트 확인
 router.put('/approve-leave-request', approvalMngmtCtrl.approvedLeaveRequest); // M 휴가 승인
+router.put('/reject-leave-request', approvalMngmtCtrl.rejectLeaveRequest);
 router.put('/delete-request', approvalMngmtCtrl.deleteLeaveRequest); /// M 휴가 거절 DB 삭제
 router.put('/cancel-Employee-Approve-Leave', approvalMngmtCtrl.cancelEmployeeApproveLeave); // M 직원의 approve 된 휴가 취소
 router.get('/getConfirmRdRequest', approvalMngmtCtrl.getConfirmRdRequest); // Manager gets a list of RD confirm requests.
-router.put('/rejectReplacementRequest',approvalMngmtCtrl.rejectReplacementRequest);	// 사원이 RD 신청한거 거절
-router.put('/approveReplacementRequest',approvalMngmtCtrl.approveReplacementRequest);	// 사원이 RD 신청한거 수락
-
+router.put('/rejectReplacementRequest', approvalMngmtCtrl.rejectReplacementRequest);	// 사원이 RD 신청한거 거절
+router.put('/approveReplacementRequest', approvalMngmtCtrl.approveReplacementRequest);	// 사원이 RD 신청한거 수락
+router.get('/requests', approvalMngmtCtrl.getLeavePendingRequest);
 
 
 //company
