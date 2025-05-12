@@ -249,57 +249,62 @@ exports.acceptEmploymentContract = async (req, res) => {
 				mspId = "ViceKRMSP";
 				break;
 		}
-		let foundAdmin = {};
-		try {
-			foundAdmin = await findAdminIfNotAdmin(mspId, global.DB_MODELS);
-		} catch (error) {
-			return res.status(409).json({ message: "어드민이 없습니다." });
-		}
 
-		console.log("-------------블록체인 시작--------------");
-		const ccp = buildCCP(selectedCompany);
-		const caClient = buildCAClient(FabricCAServices, ccp, `ca-${selectedCompany}`);
+		// 2025-05-12 시연하는데 블록체인 코드로 인해 반복적인 에러 발생
 
-		// mongodb wallet 생성
-		const store = new MongoWallet();
-		const wallet = new Wallet(store);
 
-		const adminIdentity = await wallet.get(foundAdmin.user);
-		const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
-		const adminUser = await provider.getUserContext(adminIdentity, process.env.ADMIN_USER_ID);
+		// let foundAdmin = {};
+		// try {
+		// 	foundAdmin = await findAdminIfNotAdmin(mspId, global.DB_MODELS);
+		// } catch (error) {
+		// 	console.error(error)
+		// 	return res.status(409).json({ message: "어드민이 없습니다." });
+		// }
 
-		const secret = await caClient.register(
-			{
-				affiliation: "",
-				enrollmentID: updatedRequest.member_id,
-				role: "client",
-			},
-			adminUser
-		);
+		// console.log("-------------블록체인 시작--------------");
+		// const ccp = buildCCP(selectedCompany);
+		// const caClient = buildCAClient(FabricCAServices, ccp, `ca-${selectedCompany}`);
 
-		const enrollment = await caClient.enroll({
-			enrollmentID: updatedRequest.member_id,
-			enrollmentSecret: secret,
-		});
-		const x509Identity = {
-			credentials: {
-				certificate: enrollment.certificate,
-				privateKey: enrollment.key.toBytes(),
-			},
-			mspId: mspId,
-			type: "X.509",
-		};
+		// // mongodb wallet 생성
+		// const store = new MongoWallet();
+		// const wallet = new Wallet(store);
 
-		const data = {
-			role: "client",
-			email: memberCompanyId.email,
-			certificate: x509Identity,
-			mspId: mspId,
-			credentials: x509Identity.credentials,
-			version: 1,
-			type: "X.509",
-		};
-		const putData = await wallet.put(updatedRequest.member_id, data);
+		// const adminIdentity = await wallet.get(foundAdmin.user);
+		// const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
+		// const adminUser = await provider.getUserContext(adminIdentity, process.env.ADMIN_USER_ID);
+
+		// const secret = await caClient.register(
+		// 	{
+		// 		affiliation: "",
+		// 		enrollmentID: updatedRequest.member_id,
+		// 		role: "client",
+		// 	},
+		// 	adminUser
+		// );
+
+		// const enrollment = await caClient.enroll({
+		// 	enrollmentID: updatedRequest.member_id,
+		// 	enrollmentSecret: secret,
+		// });
+		// const x509Identity = {
+		// 	credentials: {
+		// 		certificate: enrollment.certificate,
+		// 		privateKey: enrollment.key.toBytes(),
+		// 	},
+		// 	mspId: mspId,
+		// 	type: "X.509",
+		// };
+
+		// const data = {
+		// 	role: "client",
+		// 	email: memberCompanyId.email,
+		// 	certificate: x509Identity,
+		// 	mspId: mspId,
+		// 	credentials: x509Identity.credentials,
+		// 	version: 1,
+		// 	type: "X.509",
+		// };
+		// const putData = await wallet.put(updatedRequest.member_id, data);
 
 		console.log("------------------블록체인 끝-------------------------")
 		return res.status(200).send({
