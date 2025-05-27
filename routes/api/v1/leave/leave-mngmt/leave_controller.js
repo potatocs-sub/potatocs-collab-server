@@ -340,7 +340,11 @@ exports.getMyLeaveStatus = async (req, res) => {
 			_id: req.decoded._id,
 		};
 
-		const projection = "emp_start_date";
+		const projection = {
+			emp_start_date: 1,
+			company_id: 1,
+			emp_start_date: 1
+		};
 
 		// 계약일 가져오기
 		const userContractInfo = await dbModels.Member.findOne(criteria, projection);
@@ -364,6 +368,10 @@ exports.getMyLeaveStatus = async (req, res) => {
 		const totalLeave = await dbModels.PersonalLeaveStandard.findOne(criteria2);
 		const leave = totalLeave.leave_standard.find((item) => item.year == careerYear);
 
+		// 마이너스 연차 정보 및 휴가 정책 정보 확인을 위해 Company 가져옴
+		const companyInfo = await dbModels.Company.findOne({ _id: userContractInfo.company_id });
+
+		console.log(companyInfo)
 
 		let usedLeave = undefined
 
@@ -381,7 +389,12 @@ exports.getMyLeaveStatus = async (req, res) => {
 
 		// 연차 계산법 수정 수정자: 임호균
 		// 현재 연차까지 반복문 수행 (현재 연차 포함)
-		for (let i = 1; i <= careerYear; i++) {
+		let i = 1;
+
+		// 만약 마이너스 연차가 허용이 안된다 하면 rollover를 위해 이전 값과 현재 값만 비교하면 됨
+		if (companyInfo.isMinusAnnualLeave == false) i = careerYear - 1;
+
+		for (i = 1; i <= careerYear; i++) {
 
 			// 연차 시작 일
 			const startYear = moment(userContractInfo.emp_start_date.getTime())
@@ -422,8 +435,6 @@ exports.getMyLeaveStatus = async (req, res) => {
 				}
 			}
 
-
-
 			// 해당 연차에 해당하는 휴가 정보에 이월되서 넘어온 휴가 더해줌
 			temp_used_annual_leave += buf_used_annual_leave;
 			temp_used_sick_leave += buf_used_sick_leave;
@@ -444,6 +455,24 @@ exports.getMyLeaveStatus = async (req, res) => {
 			const used_annual = temp_used_annual_leave - cureerLeave.annual_leave;
 			used_annual > 0 ? buf_used_annual_leave = used_annual : '';
 
+			// rollover를 사용하는거면
+			if (i == careerYear && companyInfo.rollover == true && used_annual < 0) {
+				// 전년도 연차를 덜 썼다면
+				// 서버 시간 상으로 몇 달 지났는지 계산
+				const memberStartDate = moment(userContractInfo.emp_start_date, 'YYYY-MM-DD');
+				const today = moment(new Date(), 'YYYY-MM-DD');
+				var monthDiffToday = today.diff(memberStartDate, 'months');
+				var tmp = monthDiffToday;
+				monthDiffToday = tmp % 12;
+				// var yearDiffToday = (tmp - monthDiffToday) / 12;
+
+				if (monthDiffToday <= companyInfo.rollover_max_month)
+					cureerLeave.rollover = Math.min(Math.abs(used_annual), companyInfo.rollover_max_day);
+			}
+
+
+
+
 			const used_sick = temp_used_sick_leave - cureerLeave.sick_leave;
 			used_sick > 0 ? buf_used_sick_leave = used_sick : '';
 
@@ -453,9 +482,9 @@ exports.getMyLeaveStatus = async (req, res) => {
 			const used_rollover = temp_used_rollover - cureerLeave.rollover;
 			used_rollover > 0 ? buf_used_rollover = used_rollover : '';
 
-			// console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
-
-			// 마지막 시도에서는
+			console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
+			console.log(i + '년차 rollover ' + Math.min(Math.abs(used_annual), 3))
+			// 마지막 시도에서는 최종 값을 저장
 			if (i == careerYear) {
 				used_annual_leave = temp_used_annual_leave;
 				used_sick_leave = temp_used_sick_leave;
