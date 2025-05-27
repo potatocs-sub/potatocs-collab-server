@@ -57,84 +57,7 @@ exports.requestLeave = async (req, res) => {
 			});
 		}
 
-		///////////////////////////////////////박재현 임호균 마이너스 연차 /////////////////////////////////////////////////
-		const newCareerYear = careerYear + 1;
-		// 년차 일 가져오기
-		const startYear = moment(userContractInfo.emp_start_date.getTime())
-			.add(newCareerYear - 1, "y")
-			.format("YYYY-MM-DD");
-		// console.log(startYear);
 
-		const endYear = moment(userContractInfo.emp_start_date.getTime())
-			.add(newCareerYear, "y")
-			.subtract(1, "d")
-			.format("YYYY-MM-DD");
-		// console.log(endYear);
-
-		//내가 사용한 연차
-		const usedLeave = await dbModels.LeaveRequest.find({
-			requestor: req.decoded._id,
-			leave_start_date: { $gte: startYear, $lte: endYear },
-			status: {
-				$in: ["pending", "approve"],
-			},
-		});
-		/////////////////////////////////////////////////
-
-		//전체 연차
-		const totalLeave = await dbModels.PersonalLeaveStandard.findOne({ member_id: req.decoded._id });
-
-		//내 연차
-		const MyTotalLeave = totalLeave.leave_standard.find((item) => item.year == newCareerYear);
-		let NextYearTotalLeave = totalLeave.leave_standard.find((item) => item.year == newCareerYear + 1);
-		/////////////////////////////////////////////////
-		// 넥스트이어 연차가 없을 경우, 0으로 초기화해줌
-		if (!NextYearTotalLeave) {
-			NextYearTotalLeave = { annual_leave: 0 };
-		} else if (!NextYearTotalLeave.hasOwnProperty("annual_leave")) {
-			NextYearTotalLeave.annual_leave = 0;
-		}
-		////////////////////////////////////////////////
-
-		let used_annual_leave = 0;
-
-		for (let index = 0; index < usedLeave.length; index++) {
-			if (usedLeave[index].leaveType == "annual_leave") {
-				used_annual_leave += usedLeave[index].leaveDuration;
-			}
-		}
-
-		//내가 사용한 연차 + 내가 사용할 연차 + 내 연차
-		console.log(used_annual_leave, req.body.leaveDuration, MyTotalLeave.annual_leave);
-
-		//내년 연차 콘솔을 찍어보자
-		// 올해연차가 + 인상황에서 - 가 됐을때는  이렇게 계산해야되고
-		if (used_annual_leave + req.body.leaveDuration > MyTotalLeave.annual_leave) {
-			if (MyTotalLeave.annual_leave - used_annual_leave <= 0) {
-				NextYearTotalLeave.annual_leave = NextYearTotalLeave.annual_leave - req.body.leaveDuration;
-			} else {
-				NextYearTotalLeave.annual_leave =
-					NextYearTotalLeave.annual_leave -
-					(used_annual_leave + req.body.leaveDuration) +
-					MyTotalLeave.annual_leave;
-			}
-		}
-		//저장할때 NextYearTotalLeave.annual_leave가 마이너스면 저장안하고 리턴
-		if (NextYearTotalLeave?.annual_leave < 0) {
-			console.log(NextYearTotalLeave);
-			return res.status(500).send({
-				message: "no next annual leave",
-			});
-		}
-
-		await dbModels.PersonalLeaveStandard.updateOne(
-			{ member_id: req.decoded._id },
-			{ $set: { [`leave_standard.${newCareerYear}.annual_leave`]: NextYearTotalLeave?.annual_leave } }
-		).then((res) => {
-			console.log(res);
-		});
-
-		////////////////////////////////////////임호균 박재현 수정 완료///////////////////
 		const leaveReqInput = {
 			leaveType: req.body.leaveType,
 			leaveDay: req.body.leaveDay,
@@ -272,7 +195,7 @@ exports.requestLeave = async (req, res) => {
 				
 							<div style="display: -webkit-flex; display: flex; box-sizing: border-box; width: 100%; align-items: center; direction: rtl; font-size: 20px; font-weight: bold;">
 								<div>
-									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}approval-mngmt/leave-request'>
+									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}employees/leaves/requests'>
 										Detail
 									</a>
 								</div>
@@ -441,44 +364,119 @@ exports.getMyLeaveStatus = async (req, res) => {
 		const totalLeave = await dbModels.PersonalLeaveStandard.findOne(criteria2);
 		const leave = totalLeave.leave_standard.find((item) => item.year == careerYear);
 
-		// 년차 일 가져오기
-		const startYear = moment(userContractInfo.emp_start_date.getTime())
-			.add(careerYear - 1, "y")
-			.format("YYYY-MM-DD");
-		// console.log(startYear);
 
-		const endYear = moment(userContractInfo.emp_start_date.getTime())
-			.add(careerYear, "y")
-			.subtract(1, "d")
-			.format("YYYY-MM-DD");
-		// console.log(endYear);
+		let usedLeave = undefined
 
-		const usedLeave = await dbModels.LeaveRequest.find({
-			requestor: req.decoded._id,
-			leave_start_date: { $gte: startYear, $lte: endYear },
-			status: {
-				$in: ["pending", "approve"],
-			},
-		});
-		// console.log(usedLeave);
 
 		let used_annual_leave = 0;
 		let used_sick_leave = 0;
 		let used_replacement_leave = 0;
-		let used_rollover = 0;
+		let used_rollover_leave = 0;
 
-		for (let index = 0; index < usedLeave.length; index++) {
-			if (usedLeave[index].leaveType == "annual_leave") {
-				used_annual_leave += usedLeave[index].leaveDuration;
-			} else if (usedLeave[index].leaveType == "sick_leave") {
-				used_sick_leave += usedLeave[index].leaveDuration;
-			} else if (usedLeave[index].leaveType == "replacement_leave") {
-				used_replacement_leave += usedLeave[index].leaveDuration;
-			} else if (usedLeave[index].leaveType == "rollover") {
-				used_rollover += usedLeave[index].leaveDuration;
+		// 이월된 연차를 저장할 변수
+		let buf_used_annual_leave = 0;
+		let buf_used_sick_leave = 0;
+		let buf_used_replacement_leave = 0;
+		let buf_used_rollover = 0;
+
+		// 연차 계산법 수정 수정자: 임호균
+		// 현재 연차까지 반복문 수행 (현재 연차 포함)
+		for (let i = 1; i <= careerYear; i++) {
+
+			// 연차 시작 일
+			const startYear = moment(userContractInfo.emp_start_date.getTime())
+				.add(i - 1, "y")
+				.format("YYYY-MM-DD");
+			// 연차 마무리 일
+			const endYear = moment(userContractInfo.emp_start_date.getTime())
+				.add(i, "y")
+				.subtract(1, "d")
+				.format("YYYY-MM-DD");
+
+			// 해당년초 연차 정보 불러오기
+			usedLeave = await dbModels.LeaveRequest.find({
+				requestor: req.decoded._id,
+				leave_start_date: { $gte: startYear, $lte: endYear },
+				status: {
+					$in: ["pending", "approve"],
+				},
+			});
+
+			// 임시 연차 변수
+			let temp_used_annual_leave = 0;
+			let temp_used_sick_leave = 0;
+			let temp_used_replacement_leave = 0;
+			let temp_used_rollover = 0;
+
+
+			// 연차 계산
+			for (let index = 0; index < usedLeave.length; index++) {
+				if (usedLeave[index].leaveType == "annual_leave") {
+					temp_used_annual_leave += usedLeave[index].leaveDuration;
+				} else if (usedLeave[index].leaveType == "sick_leave") {
+					temp_used_sick_leave += usedLeave[index].leaveDuration;
+				} else if (usedLeave[index].leaveType == "replacement_leave") {
+					temp_used_replacement_leave += usedLeave[index].leaveDuration;
+				} else if (usedLeave[index].leaveType == "rollover") {
+					temp_used_rollover += usedLeave[index].leaveDuration;
+				}
+			}
+
+
+
+			// 해당 연차에 해당하는 휴가 정보에 이월되서 넘어온 휴가 더해줌
+			temp_used_annual_leave += buf_used_annual_leave;
+			temp_used_sick_leave += buf_used_sick_leave;
+			temp_used_replacement_leave += buf_used_replacement_leave;
+			temp_used_rollover += buf_used_rollover;
+
+			// 버퍼 초기화
+			buf_used_annual_leave = 0;
+			buf_used_sick_leave = 0;
+			buf_used_replacement_leave = 0;
+			buf_used_rollover = 0;
+
+			// 해당 년도 연차 정보 출력 및 personal 
+			const cureerLeave = totalLeave.leave_standard.find((item) => item.year == i);
+
+
+			// 이월된 연차 정보 계산 = 넘어가야할거 있으면 넘기기
+			const used_annual = temp_used_annual_leave - cureerLeave.annual_leave;
+			used_annual > 0 ? buf_used_annual_leave = used_annual : '';
+
+			const used_sick = temp_used_sick_leave - cureerLeave.sick_leave;
+			used_sick > 0 ? buf_used_sick_leave = used_sick : '';
+
+			const used_replacement = temp_used_replacement_leave - cureerLeave.replacement_leave;
+			used_replacement > 0 ? buf_used_replacement_leave = used_replacement : '';
+
+			const used_rollover = temp_used_rollover - cureerLeave.rollover;
+			used_rollover > 0 ? buf_used_rollover = used_rollover : '';
+
+			// console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
+
+			// 마지막 시도에서는
+			if (i == careerYear) {
+				used_annual_leave = temp_used_annual_leave;
+				used_sick_leave = temp_used_sick_leave;
+				used_replacement_leave = temp_used_replacement_leave;
+				used_rollover_leave = temp_used_rollover;
 			}
 		}
 
+		// 년차 시작일
+		const startYear = moment(userContractInfo.emp_start_date.getTime())
+			.add(careerYear - 1, "y")
+			.format("YYYY-MM-DD");
+
+		// 년차 마무리일
+		const endYear = moment(userContractInfo.emp_start_date.getTime())
+			.add(careerYear, "y")
+			.subtract(1, "d")
+			.format("YYYY-MM-DD");
+
+
+		// 기존과 동일
 		const leaveInfo = {
 			startYear: startYear,
 			endYear: endYear,
@@ -489,7 +487,7 @@ exports.getMyLeaveStatus = async (req, res) => {
 			used_annual_leave: used_annual_leave,
 			used_sick_leave: used_sick_leave,
 			used_replacement_leave: used_replacement_leave,
-			used_rollover: used_rollover,
+			used_rollover: used_rollover_leave,
 		};
 		// console.log(leaveInfo);
 		return res.status(200).send(leaveInfo);
@@ -1191,7 +1189,7 @@ exports.requestConfirmRd = async (req, res) => {
 				
 							<div style="display: -webkit-flex; display: flex; box-sizing: border-box; width: 100%; align-items: center; direction: rtl; font-size: 20px; font-weight: bold;">
 								<div>
-									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}employee-mngmt/employee-rd-request'>
+									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}employees/registration/requests'>
 										Detail
 									</a>
 								</div>
