@@ -387,6 +387,9 @@ exports.getMyLeaveStatus = async (req, res) => {
 		let buf_used_replacement_leave = 0;
 		let buf_used_rollover = 0;
 
+
+		let buf_rollover = 0;
+
 		// 연차 계산법 수정 수정자: 임호균
 		// 현재 연차까지 반복문 수행 (현재 연차 포함)
 		let i = 1;
@@ -449,14 +452,15 @@ exports.getMyLeaveStatus = async (req, res) => {
 
 			// 해당 년도 연차 정보 출력 및 personal 
 			const cureerLeave = totalLeave.leave_standard.find((item) => item.year == i);
-
+			buf_rollover > 0 ? cureerLeave.rollover = buf_rollover : ''
 
 			// 이월된 연차 정보 계산 = 넘어가야할거 있으면 넘기기
 			const used_annual = temp_used_annual_leave - cureerLeave.annual_leave;
 			used_annual > 0 ? buf_used_annual_leave = used_annual : '';
 
+			// console.log(careerYear, companyInfo.rollover, used_annual)
 			// rollover를 사용하는거면
-			if (i == careerYear && companyInfo.rollover == true && used_annual < 0) {
+			if (i == careerYear - 1 && companyInfo.rollover == true && used_annual < 0) {
 				// 전년도 연차를 덜 썼다면
 				// 서버 시간 상으로 몇 달 지났는지 계산
 				const memberStartDate = moment(userContractInfo.emp_start_date, 'YYYY-MM-DD');
@@ -467,7 +471,10 @@ exports.getMyLeaveStatus = async (req, res) => {
 				// var yearDiffToday = (tmp - monthDiffToday) / 12;
 
 				if (monthDiffToday <= companyInfo.rollover_max_month)
-					cureerLeave.rollover = Math.min(Math.abs(used_annual), companyInfo.rollover_max_day);
+					buf_rollover = Math.min(Math.abs(used_annual), companyInfo.rollover_max_day);
+
+
+				// console.log(i + '년차 rollover ' + buf_rollover)
 			}
 
 
@@ -483,7 +490,7 @@ exports.getMyLeaveStatus = async (req, res) => {
 			used_rollover > 0 ? buf_used_rollover = used_rollover : '';
 
 			console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
-			console.log(i + '년차 rollover ' + Math.min(Math.abs(used_annual), 3))
+
 			// 마지막 시도에서는 최종 값을 저장
 			if (i == careerYear) {
 				used_annual_leave = temp_used_annual_leave;
