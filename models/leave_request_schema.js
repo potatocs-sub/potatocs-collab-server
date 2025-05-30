@@ -40,6 +40,21 @@ const leaveRequestSchema = mongoose.Schema(
 		rdRequest: {
 			type: mongoose.Schema.Types.ObjectId,
 			ref: 'RdRequest',
+		},
+		official_leave_request_file_key: {
+			type: String,
+		},
+		official_leave_request_file_name: {
+			type: String
+		},
+		official_leave_check_file_key: {
+			type: String,
+		},
+		official_leave_check_file_name: {
+			type: String
+		},
+		official_leave_check: {
+			type: Boolean
 		}
 	},
 	{

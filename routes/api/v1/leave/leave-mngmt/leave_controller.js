@@ -5,8 +5,20 @@ const mongoose = require("mongoose");
 const { MongoWallet } = require("../../../../../utils/mongo-wallet");
 const { Wallet, Gateway } = require("fabric-network");
 const { buildCAClient, enrollAdminMongo, buildCCP } = require("../../../../../utils/ca-utils");
-
+const { GetObjectCommand, S3Client, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const s3Client = new S3Client({
+	region: process.env.AWS_REGION,
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY,
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+	},
+});
 const nodemailer = require("nodemailer");
+
+
+
+
+
 
 exports.requestLeave = async (req, res) => {
 	console.log(`
@@ -17,9 +29,9 @@ exports.requestLeave = async (req, res) => {
 --------------------------------------------------`);
 
 	const dbModels = global.DB_MODELS;
-
+	const fileData = req.files[0];
 	//leaveDuration
-	// console.log(req.body.leaveDuration);
+	// console.log(fileData);
 	try {
 		const findMyManagerCriteria = {
 			myId: req.decoded._id,
@@ -69,6 +81,9 @@ exports.requestLeave = async (req, res) => {
 			requestor: req.decoded._id,
 			approver: getManagerData.myManager,
 			year: careerYear,
+			official_leave_request_file_key: fileData.key,
+			official_leave_request_file_name: fileData.originalname,
+			official_leave_check: false
 		};
 
 		const emailInput = {
@@ -371,7 +386,7 @@ exports.getMyLeaveStatus = async (req, res) => {
 		// 마이너스 연차 정보 및 휴가 정책 정보 확인을 위해 Company 가져옴
 		const companyInfo = await dbModels.Company.findOne({ _id: userContractInfo.company_id });
 
-		console.log(companyInfo)
+
 
 		let usedLeave = undefined
 
@@ -380,6 +395,8 @@ exports.getMyLeaveStatus = async (req, res) => {
 		let used_sick_leave = 0;
 		let used_replacement_leave = 0;
 		let used_rollover_leave = 0;
+		let used_official_leave = 0;
+		let checked_official_leave = 0;
 
 		// 이월된 연차를 저장할 변수
 		let buf_used_annual_leave = 0;
@@ -423,8 +440,8 @@ exports.getMyLeaveStatus = async (req, res) => {
 			let temp_used_sick_leave = 0;
 			let temp_used_replacement_leave = 0;
 			let temp_used_rollover = 0;
-
-
+			let temp_used_official_leave = 0;
+			let temp_checked_official_leave = 0;
 			// 연차 계산
 			for (let index = 0; index < usedLeave.length; index++) {
 				if (usedLeave[index].leaveType == "annual_leave") {
@@ -435,8 +452,13 @@ exports.getMyLeaveStatus = async (req, res) => {
 					temp_used_replacement_leave += usedLeave[index].leaveDuration;
 				} else if (usedLeave[index].leaveType == "rollover") {
 					temp_used_rollover += usedLeave[index].leaveDuration;
+				} else if (usedLeave[index].leaveType == "official_leave") {
+					temp_used_official_leave += usedLeave[index].leaveDuration;
+					temp_checked_official_leave += (usedLeave[index]?.official_leave_check ? 1 : 0);
 				}
 			}
+
+
 
 			// 해당 연차에 해당하는 휴가 정보에 이월되서 넘어온 휴가 더해줌
 			temp_used_annual_leave += buf_used_annual_leave;
@@ -489,7 +511,7 @@ exports.getMyLeaveStatus = async (req, res) => {
 			const used_rollover = temp_used_rollover - cureerLeave.rollover;
 			used_rollover > 0 ? buf_used_rollover = used_rollover : '';
 
-			console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
+			// console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
 
 			// 마지막 시도에서는 최종 값을 저장
 			if (i == careerYear) {
@@ -497,6 +519,8 @@ exports.getMyLeaveStatus = async (req, res) => {
 				used_sick_leave = temp_used_sick_leave;
 				used_replacement_leave = temp_used_replacement_leave;
 				used_rollover_leave = temp_used_rollover;
+				used_official_leave = temp_used_official_leave
+				checked_official_leave = temp_checked_official_leave;
 			}
 		}
 
@@ -524,6 +548,8 @@ exports.getMyLeaveStatus = async (req, res) => {
 			used_sick_leave: used_sick_leave,
 			used_replacement_leave: used_replacement_leave,
 			used_rollover: used_rollover_leave,
+			used_official_leave: used_official_leave,
+			checked_official_leave: checked_official_leave
 		};
 		// console.log(leaveInfo);
 		return res.status(200).send(leaveInfo);
@@ -597,6 +623,9 @@ exports.getMyRequestList = async (req, res) => {
 					leave_end_date: 1,
 					leaveDuration: 1,
 					leaveType: 1,
+					official_leave_request_file_name: 1,
+					official_leave_check_file_name: 1,
+					official_leave_check: 1,
 					approver: "$members.name",
 					status: 1,
 					leave_reason: 1,
@@ -641,14 +670,24 @@ exports.getMyRequestListSearch = async (req, res) => {
 
 	const data = req.query;
 	// console.log(data);
-
-	const startDate = new Date(data.leave_start_date);
-	const endDate = new Date(data.leave_end_date);
-
 	let match_criteria = {
 		requestor: new mongoose.Types.ObjectId(req.decoded._id),
-		leave_start_date: { $gte: startDate, $lte: endDate },
-	};
+	}
+	if (data.leave_start_date && data.leave_end_date) {
+		const startDate = new Date(data.leave_start_date);
+		const endDate = new Date(data.leave_end_date);
+
+		match_criteria = {
+			requestor: new mongoose.Types.ObjectId(req.decoded._id),
+			leave_start_date: { $gte: startDate, $lte: endDate },
+		};
+	}
+	if (data.official_leave_check != undefined) {
+
+		match_criteria.official_leave_check = (data.official_leave_check == 'true')
+	}
+
+
 	if (data.status != "all") {
 		match_criteria.status = data.status;
 	}
@@ -658,6 +697,8 @@ exports.getMyRequestListSearch = async (req, res) => {
 	if (data.type2 != "all") {
 		match_criteria.leaveDay = data.type2;
 	}
+
+
 
 	// console.log(match_criteria);
 
@@ -708,6 +749,9 @@ exports.getMyRequestListSearch = async (req, res) => {
 					leave_end_date: 1,
 					leaveDuration: 1,
 					leaveType: 1,
+					official_leave_request_file_name: 1,
+					official_leave_check_file_name: 1,
+					official_leave_check: 1,
 					leaveDay: 1,
 					approver: "$members.name",
 					status: 1,
@@ -1750,3 +1794,310 @@ exports.checkPendingLeave = async (req, res) => {
 		});
 	}
 };
+
+
+
+exports.requestfileDownload = async (req, res) => {
+	console.log(`
+--------------------------------------------------
+  User : ${req.decoded._id}
+  API  : fileDownload
+  router.get('/space/doc/fileDownload', docController.fileDownload);
+--------------------------------------------------`);
+	const dbModels = global.DB_MODELS;
+	const data = req.query;
+	// console.log(data);
+	try {
+		const donloadFile = await dbModels.LeaveRequest.findOne({
+			_id: data.fileId,
+		}).lean();
+
+		const key = donloadFile.official_leave_request_file_key;
+		console.log(key);
+
+		const command = new GetObjectCommand({
+			Bucket: process.env.AWS_S3_BUCKET,
+			Key: key,
+		});
+		const response = await s3Client.send(command);
+		res.attachment(key);
+		response.Body.pipe(res);
+		// return res.status(200).send({
+		// 	message: 'download uploaded file',
+		// });
+	} catch (err) {
+		console.log(err);
+		console.log("[ ERROR ]", err);
+		return res.status(500).send({
+			message: "download upload file Error",
+		});
+	}
+};
+
+exports.confirmedfileDownload = async (req, res) => {
+	console.log(`
+--------------------------------------------------
+  User : ${req.decoded._id}
+  API  : confirmfileDownload
+  router.get('/space/doc/confirmfileDownload', docController.confirmedfileDownload);
+--------------------------------------------------`);
+	const dbModels = global.DB_MODELS;
+	const data = req.query;
+	// console.log(data);
+	try {
+		const donloadFile = await dbModels.LeaveRequest.findOne({
+			_id: data.fileId,
+		}).lean();
+
+		const key = donloadFile.official_leave_check_file_key;
+		console.log(key);
+
+		const command = new GetObjectCommand({
+			Bucket: process.env.AWS_S3_BUCKET,
+			Key: key,
+		});
+		const response = await s3Client.send(command);
+		res.attachment(key);
+		response.Body.pipe(res);
+		// return res.status(200).send({
+		// 	message: 'download uploaded file',
+		// });
+	} catch (err) {
+		console.log(err);
+		console.log("[ ERROR ]", err);
+		return res.status(500).send({
+			message: "download upload file Error",
+		});
+	}
+};
+
+
+exports.uploadConfirmDoc = async (req, res) => {
+	console.log(`
+		--------------------------------------------------  
+		  API  : Confirm Official Leave
+		  User: ${req.decoded._id}
+		  router.post('/leave/confirm-official-leave', leaveMngmtCtrl.uploadConfirmDoc) 
+		--------------------------------------------------`);
+	const dbModels = global.DB_MODELS;
+	const fileData = req.files[0];
+
+	try {
+
+		const check = await dbModels.LeaveRequest.findOneAndUpdate({ _id: req.body._id }, {
+			official_leave_check_file_key: fileData.key,
+			official_leave_check_file_name: fileData.originalname
+		})
+
+
+		// --------------------------- AWS_SES
+
+		// If you're using Amazon SES in a region other than US West (Oregon),
+		// replace email-smtp.us-west-2.amazonaws.com with the Amazon SES SMTP
+		// endpoint in the appropriate AWS Region.
+		const smtpEndpoint = "email-smtp.us-east-1.amazonaws.com";
+
+		// The port to use when connecting to the SMTP server.
+		const port = 587;
+
+		// Replace sender@example.com with your "From" address.
+		// This address must be verified with Amazon SES.
+		const senderAddress = "POTATOCS <info@potatocs.com>";
+
+		// Replace recipient@example.com with a "To" address. If your account
+		// is still in the sandbox, this address must be verified. To specify
+		// multiple addresses, separate each address with a comma.
+		var toAddresses = getManagerData.myManager.email;
+
+		// CC and BCC addresses. If your account is in the sandbox, these
+		// addresses have to be verified. To specify multiple addresses, separate
+		// each address with a comma.
+		// var ccAddresses = "cc-recipient0@example.com,cc-recipient1@example.com";
+		var ccAddresses = "";
+		var bccAddresses = "";
+
+		// Replace smtp_username with your Amazon SES SMTP user name.
+		const smtpUsername = process.env.AWS_SES_ACCESS_KEY;
+
+		// Replace smtp_password with your Amazon SES SMTP password.
+		const smtpPassword = process.env.AWS_SES_SECRET_ACCESS_KEY;
+
+		// (Optional) the name of a configuration set to use for this message.
+		// var configurationSet = "ConfigSet";
+		var configurationSet = "";
+
+		// The subject line of the email
+		var subject = "Employee Leave Request via Potatocs";
+
+		// The email body for recipients with non-HTML email clients.
+		var body_text = ``;
+		// ---------------------------------
+		// Check out! Someone has requested a leave request.
+
+		// Click the link below
+		// ${process.env.POTATOCS_URL}leave/approval-mngmt/pending-leave`;
+
+		// The body of the email for recipients whose email clients support HTML content.
+		var body_html = `<html>
+			<head>
+				<meta charset="utf-8">
+				<meta name="viewport" content="width=device-width">
+				<meta name="x-apple-disable-message-reformatting">
+				<link rel="preconnect" href="https://fonts.googleapis.com">
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+				<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+			</head>
+			<body>
+				<table style="width: 600px; box-shadow: 0 1px 4px 0 rgb(0 0 0 / 14%); margin: 30px;">
+					
+					<div style="margin: 30px;">
+						<div style="width:600px; font-weight: bold; font-size: 16px; color: rgb(140, 140, 140); font-family: 'Noto Sans', sans-serif;">
+							Leave Management
+						</div>
+
+						<div style="width: 100%; font-family: 'Noto Sans', sans-serif;">
+				
+							<div style="margin: 60px 0; text-align: center;">
+								<div>
+									<img src="https://shared-potatocs.s3.ap-northeast-2.amazonaws.com/icons/e-con.png" alt="">
+								</div>
+								<div style="font-size: 30px; margin-top: 20px; text-align: center; color: #000;">
+									Employee Leave Request
+								</div>
+							</div>
+				
+							<div style="height:2px; background: rgb(226, 226, 226); margin: 20px 0;"></div>
+				
+							<div style="font-weight: bold; font-size:16px; margin-bottom:30px; color: #000;">
+								${emailInput.requestor} has requested a leave.
+							</div>
+				
+							<div style="font-weight: bold; font-size:14px;">
+								
+								<div style="display: flex; flex-direction: row; margin-bottom: 10px;">
+									<div style="width: 150px; color: rgb(140, 140, 140); margin-left: 20px;">
+										Requestor
+									</div>
+									<div style="color: #000;">
+										${emailInput.requestor}
+									</div>
+								</div>
+								<div style="display: flex; flex-direction: row; margin-bottom: 10px;">
+									<div style="width: 150px; color: rgb(140, 140, 140); margin-left: 20px;">
+										Leave Type
+									</div>  
+									<div style="color: #000;">
+										${emailInput.leaveType}
+									</div>
+								</div>
+								<div style="display: flex; flex-direction: row;">
+									<div style="width: 150px; color: rgb(140, 140, 140); margin-left: 20px;">
+										Period
+									</div>
+									<div style="color: #000;">
+										${emailInput.leave_start_date} ~ ${emailInput.leave_end_date}
+									</div>
+								</div>
+							</div>
+				
+							<div style="height:2px; background: rgb(226, 226, 226); margin: 20px 0;"></div>
+				
+							<div style="display: -webkit-flex; display: flex; box-sizing: border-box; width: 100%; align-items: center; direction: rtl; font-size: 20px; font-weight: bold;">
+								<div>
+									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}employees/leaves/requests'>
+										Detail
+									</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				
+				</table>
+			</body>
+		</html>`;
+		// The message tags that you want to apply to the email.
+		var tag0 = "key0=value0";
+		var tag1 = "key1=value1";
+
+		async function main() {
+			// Create the SMTP transport.
+			let transporter = nodemailer.createTransport({
+				host: smtpEndpoint,
+				port: port,
+				secure: false, // true for 465, false for other ports
+				auth: {
+					user: smtpUsername,
+					pass: smtpPassword,
+				},
+			});
+
+			// Specify the fields in the email.
+			let mailOptions = {
+				from: senderAddress,
+				to: toAddresses,
+				subject: subject,
+				cc: ccAddresses,
+				bcc: bccAddresses,
+				text: body_text,
+				html: body_html,
+				// Custom headers for configuration set and message tags.
+				headers: {
+					"X-SES-CONFIGURATION-SET": configurationSet,
+					"X-SES-MESSAGE-TAGS": tag0,
+					"X-SES-MESSAGE-TAGS": tag1,
+				},
+			};
+
+			// Send the email.
+			let info = await transporter.sendMail(mailOptions);
+
+			// console.log("Message sent! Message ID: ", info.messageId);
+		}
+
+		main().catch(console.error);
+		// --------------------------- AWS_SES
+
+
+
+		return res.send({
+			message: "upload",
+		});
+	} catch (err) {
+		return res.status(500).send({
+			message: "DB Error",
+		});
+	}
+}
+
+
+exports.checkOfficialLeave = async (req, res) => {
+	console.log(`
+		--------------------------------------------------  
+		  API  : Check Official Leave
+		  User: ${req.decoded._id}
+		  router.post('/leave/official-leave-check', leaveMngmtCtrl.checkOfficialLeave) 
+		--------------------------------------------------`);
+	const dbModels = global.DB_MODELS;
+	try {
+		if (req.body.check == true) {
+			await dbModels.LeaveRequest.findOneAndUpdate({ _id: req.body._id }, {
+				official_leave_check: req.body.check,
+				leaveType: 'official_leave'
+			})
+		} else if (req.body.check == false) {
+			await dbModels.LeaveRequest.findOneAndUpdate({ _id: req.body._id }, {
+				official_leave_check: req.body.check,
+				leaveType: 'annual_leave'
+			})
+		}
+
+
+		return res.status(200).send({
+			message: "Success"
+		})
+	} catch (err) {
+		return res.status(500).send({
+			message: "DB Error",
+		});
+	}
+}

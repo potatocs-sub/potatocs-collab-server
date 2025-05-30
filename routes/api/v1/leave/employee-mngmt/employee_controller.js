@@ -558,8 +558,30 @@ exports.myEmployeeLeaveListSearch = async (req, res) => {
 	// console.log(data.emailFind);
 	// console.log(data);
 
-	startDatee = new Date(data.leave_start_date);
-	endDatee = new Date(data.leave_end_date);
+
+
+	const match_criteria = {
+
+		emailStand: data.emailFind,
+		leaveTypeStand: data.type,
+		retired: false,
+	}
+	let startDatee = new Date(data.leave_start_date);
+	let endDatee = new Date(data.leave_end_date);
+	if (data.leave_start_date && data.leave_end_date) {
+
+		match_criteria.startDate = { $gte: startDatee, $lte: endDatee }
+	}
+
+
+	if (data.official_leave_check != undefined) {
+		match_criteria.official_leave_check = (data.official_leave_check == 'true')
+	}
+
+
+	if (data.status) {
+		match_criteria.status = data.status
+	}
 
 	const dbModels = global.DB_MODELS;
 	try {
@@ -639,6 +661,9 @@ exports.myEmployeeLeaveListSearch = async (req, res) => {
 						},
 					},
 					status: "$leave.status",
+					official_leave_request_file_name: "$leave.official_leave_request_file_name",
+					official_leave_check_file_name: "$leave.official_leave_check_file_name",
+					official_leave_check: "$leave.official_leave_check",
 					createdAt: "$leave.createdAt",
 					approver: "$approverName.name",
 					leave_reason: "$leave.leave_reason",
@@ -647,12 +672,7 @@ exports.myEmployeeLeaveListSearch = async (req, res) => {
 				},
 			},
 			{
-				$match: {
-					startDate: { $gte: startDatee, $lte: endDatee },
-					emailStand: data.emailFind,
-					leaveTypeStand: data.type,
-					retired: false,
-				},
+				$match: match_criteria
 			},
 			{
 				$sort: {

@@ -32,15 +32,23 @@ router.put('/put-employee-info', employeeMngmtCtrl.UpdateEmployeeInfo); // M edi
 router.get('/myEmployee-leaveList-search', employeeMngmtCtrl.myEmployeeLeaveListSearch); // 매니저가 가지고 있는 사원의 휴가 정보
 // router.get('/myManager-employee-list', employeeMngmtCtrl.myManagerEmployeeList); // admin이 관리하는 manager의 employee 리스트 가져오기
 
-
+const { uploadSingle, uploadArray, uploadAny } = require('../../../../utils/s3Utils'); // 'upload.js' 파일에서 upload 모듈 가져오기
 /*-----------------------------------
 	Main Leave Management
 -----------------------------------*/
-router.post('/request-leave', leaveMngmtCtrl.requestLeave); // 휴가 요청
+router.post('/request-leave', (req, res, next) => {
+	uploadAny(req, res, function (err) {
+		if (err) {
+			return res.status(400).json({ error: err.message })
+		}
+		next()
+	})
+}, leaveMngmtCtrl.requestLeave); // 휴가 요청
 router.put('/cancel-my-request-leave', leaveMngmtCtrl.cancelMyRequestLeave); // 신청한 휴가 취소
 router.get('/my-status', leaveMngmtCtrl.getMyLeaveStatus); // 내 휴가 현황(쓴거, 남은거, 토탈)
 router.get('/my-request', leaveMngmtCtrl.getMyRequestList); //// 내가 신청한 내역(3개월내의 approve만)
 router.get('/my-request-search', leaveMngmtCtrl.getMyRequestListSearch); //// 조건 걸고 search
+
 
 router.post('/requestConfirmRd', leaveMngmtCtrl.requestConfirmRd); // Replacement Day Confirming Request
 router.get('/getRdList', leaveMngmtCtrl.getRdList); // Get RD list
@@ -70,5 +78,24 @@ router.delete('/deleteCompanyRequest/:request_id', companyCtrl.deleteCompanyRequ
 
 // pending leave check
 router.get('/checkPendingLeave', leaveMngmtCtrl.checkPendingLeave);
+
+
+
+
+
+router.get('/download_request_leaves_doc', leaveMngmtCtrl.requestfileDownload)
+router.get('/download_confirm_leaves_doc', leaveMngmtCtrl.confirmedfileDownload)
+router.post('/confirm-official-leave', (req, res, next) => {
+	uploadAny(req, res, function (err) {
+		if (err) {
+			return res.status(400).json({ error: err.message })
+		}
+		next()
+	})
+}, leaveMngmtCtrl.uploadConfirmDoc)
+router.post('/official-leave-check', leaveMngmtCtrl.checkOfficialLeave)
+
+
+
 
 module.exports = router;

@@ -23,7 +23,8 @@ const fileFilter = (req, file, cb) => {
         'recording': [],
         'profile_img': ['.jpeg', '.jpg', '.png'],
         'face_img': [],
-        'nsProfile_img': ['.jpeg', '.jpg', '.png']
+        'nsProfile_img': ['.jpeg', '.jpg', '.png'],
+        'official_leave': [],
     };
 
     const allowedExts = allowedExtensions[uploadPath];
