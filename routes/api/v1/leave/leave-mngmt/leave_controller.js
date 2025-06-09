@@ -81,8 +81,8 @@ exports.requestLeave = async (req, res) => {
 			requestor: req.decoded._id,
 			approver: getManagerData.myManager,
 			year: careerYear,
-			official_leave_request_file_key: fileData.key,
-			official_leave_request_file_name: fileData.originalname,
+			official_leave_request_file_key: fileData?.key || null,
+			official_leave_request_file_name: fileData?.originalname || null,
 			official_leave_check: false
 		};
 
@@ -371,7 +371,6 @@ exports.getMyLeaveStatus = async (req, res) => {
 		}
 
 		// // 연차 계산
-		const date = new Date();
 		const today = moment(new Date());
 		const empStartDate = moment(userContractInfo.emp_start_date);
 		const careerYear = today.diff(empStartDate, "years") + 1;
@@ -1888,8 +1887,15 @@ exports.uploadConfirmDoc = async (req, res) => {
 			official_leave_check_file_key: fileData.key,
 			official_leave_check_file_name: fileData.originalname
 		})
-
-
+		const userYear = await dbModels.Member.findOne({
+			_id: req.decoded._id,
+		});
+		const emailInput = {
+			requestor: userYear.name,
+			leaveType: leaveViewType(check.leaveType),
+			leave_start_date: check.leave_start_date,
+			leave_end_date: check.leave_end_date,
+		};
 		// --------------------------- AWS_SES
 
 		// If you're using Amazon SES in a region other than US West (Oregon),
@@ -2004,7 +2010,7 @@ exports.uploadConfirmDoc = async (req, res) => {
 				
 							<div style="display: -webkit-flex; display: flex; box-sizing: border-box; width: 100%; align-items: center; direction: rtl; font-size: 20px; font-weight: bold;">
 								<div>
-									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}employees/leaves/requests'>
+									<a style="text-decoration: none; color:rgb(74, 119, 216)" href='${process.env.POTATOCS_URL}employees/leaves/official-leave-requests'>
 										Detail
 									</a>
 								</div>

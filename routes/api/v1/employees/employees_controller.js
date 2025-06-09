@@ -3,6 +3,7 @@ const { default: mongoose } = require("mongoose");
 const { buildCCP } = require("../../../../utils/ca-utils");
 const { Gateway, Wallet } = require("fabric-network");
 const { MongoWallet } = require("../../../../utils/mongo-wallet");
+const moment = require("moment");
 
 exports.myEmployeeList = async (req, res) => {
 	console.log(`
@@ -127,129 +128,129 @@ exports.myEmployeeList = async (req, res) => {
 					},
 				},
 			},
-			{
-				$lookup: {
-					from: "leaverequests",
-					let: {
-						userId: "$_id",
-						years: "$year",
-					},
-					pipeline: [
-						{
-							$match: {
-								$expr: {
-									$and: [{ $eq: ["$requestor", "$$userId"] }, { $eq: ["$year", "$$years"] }],
-								},
-							},
-						},
-						{
-							$facet: {
-								used_annual_leave: [
-									{
-										$match: {
-											$expr: {
-												$and: [
-													{ $eq: ["$leaveType", "annual_leave"] },
-													{
-														$or: [
-															{ $eq: ["$status", "approve"] },
-															{ $eq: ["$status", "pending"] },
-														],
-													},
-												],
-											},
-										},
-									},
-									{
-										$group: {
-											_id: null,
-											sum: {
-												$sum: "$leaveDuration",
-											},
-										},
-									},
-								],
-								used_rollover: [
-									{
-										$match: {
-											$expr: {
-												$and: [
-													{ $eq: ["$leaveType", "rollover"] },
-													{
-														$or: [
-															{ $eq: ["$status", "approve"] },
-															{ $eq: ["$status", "pending"] },
-														],
-													},
-												],
-											},
-										},
-									},
-									{
-										$group: {
-											_id: null,
-											sum: {
-												$sum: "$leaveDuration",
-											},
-										},
-									},
-								],
-								used_sick_leave: [
-									{
-										$match: {
-											$expr: {
-												$and: [
-													{ $eq: ["$leaveType", "sick_leave"] },
-													{
-														$or: [
-															{ $eq: ["$status", "approve"] },
-															{ $eq: ["$status", "pending"] },
-														],
-													},
-												],
-											},
-										},
-									},
-									{
-										$group: {
-											_id: null,
-											sum: {
-												$sum: "$leaveDuration",
-											},
-										},
-									},
-								],
-								used_replacement_leave: [
-									{
-										$match: {
-											$expr: {
-												$and: [
-													{ $eq: ["$leaveType", "replacement_leave"] },
-													{
-														$or: [
-															{ $eq: ["$status", "approve"] },
-															{ $eq: ["$status", "pending"] },
-														],
-													},
-												],
-											},
-										},
-									},
-									{
-										$group: {
-											_id: null,
-											sum: {
-												$sum: "$leaveDuration",
-											},
-										},
-									},
-								],
-							},
-						},
-					],
-					as: "usedLeave",
-				},
-			},
+			// {
+			// 	$lookup: {
+			// 		from: "leaverequests",
+			// 		let: {
+			// 			userId: "$_id",
+			// 			years: "$year",
+			// 		},
+			// 		pipeline: [
+			// 			{
+			// 				$match: {
+			// 					$expr: {
+			// 						$and: [{ $eq: ["$requestor", "$$userId"] }],
+			// 					},
+			// 				},
+			// 			},
+			// 			{
+			// 				$facet: {
+			// 					used_annual_leave: [
+			// 						{
+			// 							$match: {
+			// 								$expr: {
+			// 									$and: [
+			// 										{ $eq: ["$leaveType", "annual_leave"] },
+			// 										{
+			// 											$or: [
+			// 												{ $eq: ["$status", "approve"] },
+			// 												{ $eq: ["$status", "pending"] },
+			// 											],
+			// 										},
+			// 									],
+			// 								},
+			// 							},
+			// 						},
+			// 						// {
+			// 						// 	$group: {
+			// 						// 		_id: null,
+			// 						// 		sum: {
+			// 						// 			$sum: "$leaveDuration",
+			// 						// 		},
+			// 						// 	},
+			// 						// },
+			// 					],
+			// 					used_rollover: [
+			// 						{
+			// 							$match: {
+			// 								$expr: {
+			// 									$and: [
+			// 										{ $eq: ["$leaveType", "rollover"] },
+			// 										{
+			// 											$or: [
+			// 												{ $eq: ["$status", "approve"] },
+			// 												{ $eq: ["$status", "pending"] },
+			// 											],
+			// 										},
+			// 									],
+			// 								},
+			// 							},
+			// 						},
+			// 						// {
+			// 						// 	$group: {
+			// 						// 		_id: null,
+			// 						// 		sum: {
+			// 						// 			$sum: "$leaveDuration",
+			// 						// 		},
+			// 						// 	},
+			// 						// },
+			// 					],
+			// 					used_sick_leave: [
+			// 						{
+			// 							$match: {
+			// 								$expr: {
+			// 									$and: [
+			// 										{ $eq: ["$leaveType", "sick_leave"] },
+			// 										{
+			// 											$or: [
+			// 												{ $eq: ["$status", "approve"] },
+			// 												{ $eq: ["$status", "pending"] },
+			// 											],
+			// 										},
+			// 									],
+			// 								},
+			// 							},
+			// 						},
+			// 						// {
+			// 						// 	$group: {
+			// 						// 		_id: null,
+			// 						// 		sum: {
+			// 						// 			$sum: "$leaveDuration",
+			// 						// 		},
+			// 						// 	},
+			// 						// },
+			// 					],
+			// 					used_replacement_leave: [
+			// 						{
+			// 							$match: {
+			// 								$expr: {
+			// 									$and: [
+			// 										{ $eq: ["$leaveType", "replacement_leave"] },
+			// 										{
+			// 											$or: [
+			// 												{ $eq: ["$status", "approve"] },
+			// 												{ $eq: ["$status", "pending"] },
+			// 											],
+			// 										},
+			// 									],
+			// 								},
+			// 							},
+			// 						},
+			// 						// {
+			// 						// 	$group: {
+			// 						// 		_id: null,
+			// 						// 		sum: {
+			// 						// 			$sum: "$leaveDuration",
+			// 						// 		},
+			// 						// 	},
+			// 						// },
+			// 					],
+			// 				},
+			// 			},
+			// 		],
+			// 		as: "usedLeave",
+			// 	},
+			// },
 			{
 				$unwind: {
 					path: "$totalLeave",
@@ -296,6 +297,205 @@ exports.myEmployeeList = async (req, res) => {
 			{ $skip: skip },
 			{ $limit: limit },
 		]);
+
+		////////////////////////////////////////////////////////////////////
+		const projection = {
+			emp_start_date: 1,
+			company_id: 1,
+			emp_start_date: 1,
+
+		};
+
+
+		for (let k = 0; k < myEmployeeList.length; k++) {
+			const userContractInfo = await dbModels.Member.findOne(myEmployeeList[k]._id, projection);
+
+			if (userContractInfo.emp_start_date == null) {
+				return res.send({
+					message: "yet",
+				});
+			}
+
+			// // 연차 계산
+			const today = moment(new Date());
+			const empStartDate = moment(userContractInfo.emp_start_date);
+			const careerYear = today.diff(empStartDate, "years") + 1;
+
+			// Total Leave 가져오기
+			const criteria2 = {
+				member_id: myEmployeeList[k]._id,
+			};
+			const totalLeave = await dbModels.PersonalLeaveStandard.findOne(criteria2);
+			const leave = totalLeave.leave_standard.find((item) => item.year == careerYear);
+
+			// 마이너스 연차 정보 및 휴가 정책 정보 확인을 위해 Company 가져옴
+			const companyInfo = await dbModels.Company.findOne({ _id: userContractInfo.company_id });
+
+
+
+			let usedLeave = undefined
+
+
+			let used_annual_leave = 0;
+			let used_sick_leave = 0;
+			let used_replacement_leave = 0;
+			let used_rollover_leave = 0;
+			let used_official_leave = 0;
+			let checked_official_leave = 0;
+
+			// 이월된 연차를 저장할 변수
+			let buf_used_annual_leave = 0;
+			let buf_used_sick_leave = 0;
+			let buf_used_replacement_leave = 0;
+			let buf_used_rollover = 0;
+
+
+			let buf_rollover = 0;
+
+			// 연차 계산법 수정 수정자: 임호균
+			// 현재 연차까지 반복문 수행 (현재 연차 포함)
+			let i = 1;
+
+			// 만약 마이너스 연차가 허용이 안된다 하면 rollover를 위해 이전 값과 현재 값만 비교하면 됨
+			if (companyInfo.isMinusAnnualLeave == false) i = careerYear - 1;
+
+			for (i = 1; i <= careerYear; i++) {
+
+				// 연차 시작 일
+				const startYear = moment(userContractInfo.emp_start_date.getTime())
+					.add(i - 1, "y")
+					.format("YYYY-MM-DD");
+				// 연차 마무리 일
+				const endYear = moment(userContractInfo.emp_start_date.getTime())
+					.add(i, "y")
+					.subtract(1, "d")
+					.format("YYYY-MM-DD");
+
+				// 해당년초 연차 정보 불러오기
+				usedLeave = await dbModels.LeaveRequest.find({
+					requestor: myEmployeeList[k]._id,
+					leave_start_date: { $gte: startYear, $lte: endYear },
+					status: {
+						$in: ["pending", "approve"],
+					},
+				});
+
+
+
+				// 임시 연차 변수
+				let temp_used_annual_leave = 0;
+				let temp_used_sick_leave = 0;
+				let temp_used_replacement_leave = 0;
+				let temp_used_rollover = 0;
+				let temp_used_official_leave = 0;
+				let temp_checked_official_leave = 0;
+				// 연차 계산
+				for (let index = 0; index < usedLeave.length; index++) {
+					if (usedLeave[index].leaveType == "annual_leave") {
+						temp_used_annual_leave += usedLeave[index].leaveDuration;
+					} else if (usedLeave[index].leaveType == "sick_leave") {
+						temp_used_sick_leave += usedLeave[index].leaveDuration;
+					} else if (usedLeave[index].leaveType == "replacement_leave") {
+						temp_used_replacement_leave += usedLeave[index].leaveDuration;
+					} else if (usedLeave[index].leaveType == "rollover") {
+						temp_used_rollover += usedLeave[index].leaveDuration;
+					} else if (usedLeave[index].leaveType == "official_leave") {
+						temp_used_official_leave += usedLeave[index].leaveDuration;
+						temp_checked_official_leave += (usedLeave[index]?.official_leave_check ? 1 : 0);
+					}
+				}
+
+
+
+				// 해당 연차에 해당하는 휴가 정보에 이월되서 넘어온 휴가 더해줌
+				temp_used_annual_leave += buf_used_annual_leave;
+				temp_used_sick_leave += buf_used_sick_leave;
+				temp_used_replacement_leave += buf_used_replacement_leave;
+				temp_used_rollover += buf_used_rollover;
+
+				// 버퍼 초기화
+				buf_used_annual_leave = 0;
+				buf_used_sick_leave = 0;
+				buf_used_replacement_leave = 0;
+				buf_used_rollover = 0;
+
+				// 해당 년도 연차 정보 출력 및 personal 
+				const cureerLeave = totalLeave.leave_standard.find((item) => item.year == i);
+				buf_rollover > 0 ? cureerLeave.rollover = buf_rollover : ''
+
+				// 이월된 연차 정보 계산 = 넘어가야할거 있으면 넘기기
+				const used_annual = temp_used_annual_leave - cureerLeave.annual_leave;
+				used_annual > 0 ? buf_used_annual_leave = used_annual : '';
+
+				// console.log(careerYear, companyInfo.rollover, used_annual)
+				// rollover를 사용하는거면
+				if (i == careerYear - 1 && companyInfo.rollover == true && used_annual < 0) {
+					// 전년도 연차를 덜 썼다면
+					// 서버 시간 상으로 몇 달 지났는지 계산
+					const memberStartDate = moment(userContractInfo.emp_start_date, 'YYYY-MM-DD');
+					const today = moment(new Date(), 'YYYY-MM-DD');
+					var monthDiffToday = today.diff(memberStartDate, 'months');
+					var tmp = monthDiffToday;
+					monthDiffToday = tmp % 12;
+					// var yearDiffToday = (tmp - monthDiffToday) / 12;
+
+					if (monthDiffToday <= companyInfo.rollover_max_month)
+						buf_rollover = Math.min(Math.abs(used_annual), companyInfo.rollover_max_day);
+
+
+					// console.log(i + '년차 rollover ' + buf_rollover)
+				}
+
+
+
+
+				const used_sick = temp_used_sick_leave - cureerLeave.sick_leave;
+				used_sick > 0 ? buf_used_sick_leave = used_sick : '';
+
+				const used_replacement = temp_used_replacement_leave - cureerLeave.replacement_leave;
+				used_replacement > 0 ? buf_used_replacement_leave = used_replacement : '';
+
+				const used_rollover = temp_used_rollover - cureerLeave.rollover;
+				used_rollover > 0 ? buf_used_rollover = used_rollover : '';
+
+				// console.log(i + '년차 휴가' + temp_used_annual_leave + '개 사용했습니다.' + cureerLeave.annual_leave + '보다' + buf_used_annual_leave + '만큼 초과했습니다.')
+
+				// 마지막 시도에서는 최종 값을 저장
+				if (i == careerYear) {
+					used_annual_leave = temp_used_annual_leave;
+					used_sick_leave = temp_used_sick_leave;
+					used_replacement_leave = temp_used_replacement_leave;
+					used_rollover_leave = temp_used_rollover;
+					used_official_leave = temp_used_official_leave
+					checked_official_leave = temp_checked_official_leave;
+				}
+			}
+
+			// 년차 시작일
+			const startYear = moment(userContractInfo.emp_start_date.getTime())
+				.add(careerYear - 1, "y")
+				.format("YYYY-MM-DD");
+
+			// 년차 마무리일
+			const endYear = moment(userContractInfo.emp_start_date.getTime())
+				.add(careerYear, "y")
+				.subtract(1, "d")
+				.format("YYYY-MM-DD");
+
+
+
+			myEmployeeList[k].used_annual_leave = used_annual_leave;
+			myEmployeeList[k].used_sick_leave = used_sick_leave;
+			myEmployeeList[k].used_replacement_leave = used_replacement_leave;
+			myEmployeeList[k].used_rollover = used_rollover_leave;
+			myEmployeeList[k].used_official_leave = used_official_leave;
+			myEmployeeList[k].checked_official_leave = checked_official_leave;
+		}
+
+
+		///////////////////////////////////////////////////////////////////////////
+
+
 
 		// console.log(myEmployeeList)
 		return res.status(200).send({
